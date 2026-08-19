@@ -1,0 +1,38 @@
+name: Fill release notes
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - com.surfshark.Surfshark.yaml
+      - com.surfshark.Surfshark.metainfo.xml
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fill-release-notes:
+    runs-on: ubuntu-latest
+    # Same-repo branches only (flathubbot and maintainers); fork PRs get a
+    # read-only token and could not push anyway.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+
+      - name: Fill release notes from the .deb changelog
+        run: |
+          command -v bsdtar >/dev/null || sudo apt-get install -y -qq libarchive-tools
+          bash .github/fill-release-notes.sh
+
+      - name: Push filled notes
+        run: |
+          if git diff --quiet; then
+            echo "Release notes already filled"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Fill release notes from the Debian changelog"
+          git push
